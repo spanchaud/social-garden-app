@@ -2,36 +2,66 @@ import streamlit as st
 import google.generativeai as genai
 import os
 
-# --- Configuration de la page ---
+# --- 1. CONFIGURATION DE LA PAGE ---
 st.set_page_config(page_title="Social Garden", page_icon="🌱")
-
 st.title("Social Garden 🌱")
-st.write("Bienvenue dans votre espace Social Garden. Posez votre question ci-dessous.")
+st.write("Bienvenue dans votre espace Social Garden.")
 
-# --- Gestion de la Clé API ---
-# On va chercher la clé dans les "coffre-forts" de Streamlit
+# --- 2. LE CERVEAU DE VOTRE APP (IMPORTANT !) ---
+# C'est ici que vous devez coller les instructions que vous aviez dans AI Studio.
+# Copiez votre texte entre les trois guillemets ci-dessous.
+SYSTEM_PROMPT = """
+Tu es Social Garden, un assistant expert en jardinage social et réseautage.
+Ton but est d'aider l'utilisateur à cultiver ses relations professionnelles.
+Réponds toujours de manière bienveillante, encourageante et structurée.
+Si l'utilisateur pose une question hors sujet, ramène-le doucement au jardinage social.
+"""
+
+# --- 3. CONNEXION CLÉ API ---
 try:
     api_key = st.secrets["GEMINI_API_KEY"]
     genai.configure(api_key=api_key)
 except Exception as e:
-    st.error("Erreur : La clé API est manquante. Avez-vous configuré les secrets ?")
+    st.error("Erreur de clé API. Vérifiez vos 'Secrets' dans Streamlit.")
     st.stop()
 
-# --- Configuration du Modèle ---
-# On utilise le modèle standard. Vous pouvez changer 'gemini-pro' si besoin.
-model = genai.GenerativeModel('gemini-1.5-flash') 
+# --- 4. CONFIGURATION DU MODÈLE ---
+# On utilise 'gemini-pro' qui est plus stable pour éviter l'erreur 404
+model = genai.GenerativeModel('gemini-pro') 
 
-# --- Interface Utilisateur ---
-user_input = st.text_area("Votre message :", height=150)
+# --- 5. INTERFACE DE DISCUSSION ---
 
-if st.button("Envoyer au jardin 🚀"):
-    if user_input:
-        with st.spinner("Le jardinier réfléchit..."):
-            try:
-                response = model.generate_content(user_input)
-                st.markdown("### Réponse :")
-                st.write(response.text)
-            except Exception as e:
-                st.error(f"Une erreur s'est produite : {e}")
-    else:
-        st.warning("Veuillez écrire quelque chose avant d'envoyer.")
+# Initialiser l'historique si c'est la première fois
+if "messages" not in st.session_state:
+    st.session_state.messages = [
+        {"role": "user", "parts": [SYSTEM_PROMPT]}, # On injecte la personnalité au début cachée
+        {"role": "model", "parts": ["Bien compris. Je suis prêt à agir en tant que Social Garden."]}
+    ]
+
+# Afficher les anciens messages (sauf le prompt système caché)
+for message in st.session_state.messages[2:]:
+    with st.chat_message(message["role"]):
+        st.markdown(message["parts"][0])
+
+# Zone de saisie pour l'utilisateur
+if prompt := st.chat_input("Posez votre question à Social Garden..."):
+    # 1. Afficher le message de l'utilisateur
+    st.chat_message("user").markdown(prompt)
+    
+    # 2. L'ajouter à l'historique
+    st.session_state.messages.append({"role": "user", "parts": [prompt]})
+    
+    # 3. Demander la réponse à l'IA
+    try:
+        chat = model.start_chat(history=st.session_state.messages)
+        response = chat.send_message(prompt)
+        
+        # 4. Afficher la réponse
+        with st.chat_message("model"):
+            st.markdown(response.text)
+            
+        # 5. Sauvegarder la réponse
+        st.session_state.messages.append({"role": "model", "parts": [response.text]})
+        
+    except Exception as e:
+        st.error(f"Une erreur s'est produite : {e}")
