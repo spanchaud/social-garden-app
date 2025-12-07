@@ -58,6 +58,7 @@ Structure JSON attendue :
        "mauvaises_herbes_compostees": true/false (si un conflit a été résolu)
    }
 }
+"""
 
 # --- 3. CONNEXION CLÉ API ---
 try:
